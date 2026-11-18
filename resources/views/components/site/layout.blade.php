@@ -50,7 +50,9 @@
         </div>
         <div class="container footer-bottom">
             <span>© {{ now()->year }} Provador</span>
-            <span>[RAZÃO SOCIAL] · CNPJ [00.000.000/0000-00]</span>
+            @if ($legal = \App\Support\Platform::legalLine())
+                <span>{{ $legal }}</span>
+            @endif
         </div>
     </footer>
 </body>

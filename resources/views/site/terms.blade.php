@@ -5,7 +5,7 @@
         <div class="notice notice-amber">Modelo inicial. Revise com um advogado e preencha os campos entre colchetes antes de publicar.</div>
 
         <h2>1. Quem somos</h2>
-        <p>O Provador é uma plataforma de catálogo online operada por [RAZÃO SOCIAL], CNPJ [00.000.000/0000-00], com sede em [CIDADE/UF] ("Provador", "nós"). Contato: [E-MAIL DE SUPORTE].</p>
+        <p>O Provador é uma plataforma de catálogo online{{ \App\Support\Platform::operatedBy() }}, com sede em [CIDADE/UF] ("Provador", "nós"). Contato: [E-MAIL DE SUPORTE].</p>
 
         <h2>2. O que o Provador oferece</h2>
         <p>Permitimos que lojistas criem uma vitrine online, cadastrem produtos e recebam pedidos enviados pelos clientes via WhatsApp. O Provador <strong>não processa pagamentos, não entrega produtos e não é parte da venda</strong>: preço, estoque, pagamento, entrega, trocas e garantias são combinados diretamente entre o lojista e o cliente.</p>

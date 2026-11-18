@@ -4,7 +4,7 @@
         <p class="muted">Última atualização: [DATA]</p>
         <div class="notice notice-amber">Modelo inicial. Revise com um advogado e preencha os campos entre colchetes antes de publicar.</div>
 
-        <p>Esta política explica como o Provador ([RAZÃO SOCIAL], CNPJ [00.000.000/0000-00]) trata dados pessoais, de acordo com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 — LGPD).</p>
+        <p>Esta política explica como o Provador @if ($id = \App\Support\Platform::identification()) ({{ $id }}) @endif trata dados pessoais, de acordo com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 — LGPD).</p>
 
         <h2>1. Dados dos lojistas</h2>
         <p><strong>Quais:</strong> nome, e-mail, senha (armazenada de forma criptografada), dados da loja, WhatsApp e, para a assinatura, nome ou razão social, CPF/CNPJ, e-mail e telefone de cobrança.</p>
