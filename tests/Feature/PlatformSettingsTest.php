@@ -21,7 +21,7 @@ class PlatformSettingsTest extends TestCase
 
     public function test_company_data_is_optional_on_site_pages(): void
     {
-        $this->get('/')->assertOk()->assertDontSee('CNPJ')->assertDontSee('[RAZÃO SOCIAL]');
+        $this->get('/')->assertOk()->assertDontSee('· CNPJ')->assertDontSee('[RAZÃO SOCIAL]');
         $this->get('/termos')->assertOk()->assertSee('plataforma de catálogo online, com sede');
     }
 
@@ -39,7 +39,7 @@ class PlatformSettingsTest extends TestCase
     {
         Setting::set('company_name', 'Empresa Exemplo');
 
-        $this->get('/')->assertSee('Empresa Exemplo')->assertDontSee('CNPJ');
+        $this->get('/')->assertSee('Empresa Exemplo')->assertDontSee('· CNPJ');
     }
 
     public function test_settings_page_is_only_for_super_admin(): void

@@ -13,14 +13,16 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Instrument+Serif:ital@0;1&display=swap">
     <link rel="stylesheet" href="{{ asset('css/vitrine.css') }}?v={{ $cssVersion }}">
+    <link rel="stylesheet" href="{{ asset('css/site.css') }}?v={{ @filemtime(public_path('css/site.css')) ?: 1 }}">
 </head>
 <body>
     <a href="#conteudo" class="skip-link">Pular para o conteúdo</a>
     <header class="site-header">
-        <div class="container header-row">
+        <div class="s-wrap header-row">
             <a href="{{ url('/') }}" class="brand"><span class="brand-name">provador</span></a>
             <nav class="header-nav only-desktop" aria-label="Site">
-                <a href="{{ url('/') }}#como-funciona">Como funciona</a>
+                <a href="{{ url('/') }}#funcionando">Veja funcionando</a>
+                <a href="{{ url('/') }}#recursos">Recursos</a>
                 <a href="{{ url('/') }}#preco">Preço</a>
                 <a href="{{ url('/') }}#duvidas">Dúvidas</a>
             </nav>
@@ -36,7 +38,7 @@
     </main>
 
     <footer class="site-footer">
-        <div class="container footer-row">
+        <div class="s-wrap footer-row">
             <div class="footer-info">
                 <strong>Provador</strong>
                 <span>Catálogo online com pedidos pelo WhatsApp.</span>
@@ -48,7 +50,7 @@
                 <a href="{{ url('privacidade') }}">Privacidade</a>
             </nav>
         </div>
-        <div class="container footer-bottom">
+        <div class="s-wrap footer-bottom">
             <span>© {{ now()->year }} Provador</span>
             @if ($legal = \App\Support\Platform::legalLine())
                 <span>{{ $legal }}</span>
