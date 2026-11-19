@@ -6,6 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex">
     <title>{{ $store->name }} — catálogo fora do ar</title>
+    @if ($store->logo_path)
+        <link rel="icon" href="{{ \App\Support\Format::image($store->logo_path) }}">
+    @endif
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Instrument+Serif:ital@0;1&display=swap">
     <link rel="stylesheet" href="{{ asset('css/vitrine.css') }}?v={{ $cssVersion }}">
 </head>

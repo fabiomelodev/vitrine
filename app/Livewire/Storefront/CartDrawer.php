@@ -5,7 +5,9 @@ namespace App\Livewire\Storefront;
 use App\Actions\PlaceOrder;
 use App\Livewire\Storefront\Concerns\InteractsWithStore;
 use App\Models\Product;
+use App\Models\StorefrontEvent;
 use App\Support\CartLine;
+use App\Support\StorefrontTracker;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
@@ -105,6 +107,9 @@ class CartDrawer extends Component
 
         $this->cart()->add($product->getKey(), $variantId, 1);
         $this->picking = null;
+
+        // Peça adicionada pelo "Complete o look".
+        StorefrontTracker::record($this->store(), StorefrontEvent::ADD_TO_CART, $product->getKey(), 'sugestao', 1);
         $this->dispatch('cart-count-changed')->to(CartButton::class);
     }
 
@@ -183,6 +188,8 @@ class CartDrawer extends Component
         }
 
         $order = $placeOrder->handle($this->store(), $lines, $this->name, $this->phone);
+
+        StorefrontTracker::attachToOrder($this->store(), $order);
 
         if (! $this->direct) {
             $this->cart()->clear();

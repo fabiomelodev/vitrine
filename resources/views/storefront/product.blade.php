@@ -1,5 +1,5 @@
 @php use App\Support\Format; @endphp
-<x-storefront.layout :title="$product->name" :description="\Illuminate\Support\Str::limit($product->description, 150)">
+<x-storefront.layout :title="$product->name" :description="\Illuminate\Support\Str::limit($product->description, 150)" :image="\App\Support\Format::image($product->coverImage())">
     <div class="container">
         <nav class="crumbs" aria-label="Você está em" style="padding: 24px 0">
             <a href="{{ route('storefront.home', $store->slug) }}">Início</a><span aria-hidden="true">/</span>

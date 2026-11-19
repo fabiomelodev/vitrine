@@ -35,6 +35,11 @@ Route::prefix('{storeSlug}')
         Route::get('/produtos', 'products')->name('products');
         Route::get('/c/{categorySlug}', 'category')->name('category');
         Route::get('/p/{productSlug}', 'product')->name('product');
+        Route::get('/p/{productSlug}/avise-me', 'restock')->name('restock');
+        // Eventos anônimos do navegador (favoritos). Sem CSRF: é só contagem, com limite por IP.
+        Route::post('/evento', 'event')->name('event')
+            ->withoutMiddleware([PreventRequestForgery::class])
+            ->middleware('throttle:30,1');
         Route::get('/busca', 'search')->name('search');
         Route::get('/sacola', 'cart')->name('cart');
         Route::get('/favoritos', 'favorites')->name('favorites');

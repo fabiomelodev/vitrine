@@ -273,14 +273,14 @@
                 <div class="s-row s-feature">
                     <div class="s-col s-text">
                         <h3>Pedidos organizados no painel</h3>
-                        <p>Cada pedido chega com código, itens e total. Você recebe aviso no painel e por e-mail e acompanha o andamento: novo, confirmado, enviado.</p>
+                        <p>Cada pedido chega com código, itens e total. Você recebe aviso no painel e por e-mail e acompanha o andamento: novo, em atendimento, vendido.</p>
                     </div>
                     <div class="s-col s-showcase" aria-hidden="true">
                         <div class="s-card-ui s-orders-ui">
                             <header><strong>Pedidos</strong><span class="s-bell"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><b>1</b></span></header>
                             <div class="s-order-row"><span><strong>#AL-1024 · Marina</strong><small>2 peças · R$ 519,80</small></span><span class="s-badge new">Novo</span></div>
-                            <div class="s-order-row"><span><strong>#AL-1023 · Juliana</strong><small>1 peça · R$ 389,90</small></span><span class="s-badge conf">Confirmado</span></div>
-                            <div class="s-order-row"><span><strong>#AL-1022 · Carla</strong><small>3 peças · R$ 712,70</small></span><span class="s-badge sent">Enviado</span></div>
+                            <div class="s-order-row"><span><strong>#AL-1023 · Juliana</strong><small>1 peça · R$ 389,90</small></span><span class="s-badge conf">Em atendimento</span></div>
+                            <div class="s-order-row"><span><strong>#AL-1022 · Carla</strong><small>3 peças · R$ 712,70</small></span><span class="s-badge sent">Vendido</span></div>
                         </div>
                     </div>
                 </div>

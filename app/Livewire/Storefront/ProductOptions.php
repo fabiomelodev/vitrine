@@ -5,8 +5,10 @@ namespace App\Livewire\Storefront;
 use App\Livewire\Storefront\Concerns\InteractsWithStore;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\StorefrontEvent;
 use App\Support\Cart;
 use App\Support\Format;
+use App\Support\StorefrontTracker;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -30,6 +32,9 @@ class ProductOptions extends Component
     public ?string $error = null;
 
     public bool $added = false;
+
+    /** Tamanho esgotado que o cliente tocou (mostra o "Avise-me"). */
+    public ?string $soldOutSize = null;
 
     protected ?Product $productModel = null;
 
@@ -94,6 +99,7 @@ class ProductOptions extends Component
         $this->dispatch('color-selected', color: $color);
         $this->error = null;
         $this->added = false;
+        $this->soldOutSize = null;
 
         // Se o tamanho escolhido não existe/esgotou nesta cor, limpa.
         $size = $this->sizes()->firstWhere('name', $this->size);
@@ -110,6 +116,22 @@ class ProductOptions extends Component
             $this->size = $size;
             $this->error = null;
             $this->added = false;
+            $this->soldOutSize = null;
+
+            return;
+        }
+
+        // Tamanho esgotado: conta a procura e oferece o "Avise-me quando voltar".
+        if ($option) {
+            $this->soldOutSize = $size;
+            $this->error = null;
+
+            StorefrontTracker::recordOnce(
+                $this->store(),
+                StorefrontEvent::SOLDOUT_TAP,
+                $this->productId,
+                collect([$this->color, $size])->filter()->implode(' / '),
+            );
         }
     }
 
@@ -173,6 +195,8 @@ class ProductOptions extends Component
         $this->error = null;
         $this->added = true;
 
+        StorefrontTracker::record($this->store(), StorefrontEvent::ADD_TO_CART, $this->productId, null, $this->qty);
+
         $this->dispatch('cart-updated');
     }
 
@@ -185,6 +209,8 @@ class ProductOptions extends Component
         }
 
         $this->error = null;
+
+        StorefrontTracker::record($this->store(), StorefrontEvent::ADD_TO_CART, $this->productId, 'pedido_direto', $this->qty);
 
         $this->dispatch('checkout-direct', productId: $this->productId, variantId: $variant?->getKey(), qty: $this->qty);
     }
@@ -200,7 +226,13 @@ class ProductOptions extends Component
             'sizes' => $this->sizes(),
             'soldOut' => $variants->isNotEmpty() && ! $variants->contains('is_available', true),
             'cartCount' => $this->cart()->count(),
-            'notifyUrl' => $this->store()->whatsappUrl('Olá! Quero ser avisado(a) quando "'.$product->name.'" voltar ao estoque.'),
+            'notifyUrl' => route('storefront.restock', ['storeSlug' => $this->store()->slug, 'productSlug' => $product->slug]),
+            'sizeNotifyUrl' => $this->soldOutSize ? route('storefront.restock', array_filter([
+                'storeSlug' => $this->store()->slug,
+                'productSlug' => $product->slug,
+                'cor' => $this->color,
+                'tam' => $this->soldOutSize,
+            ])) : null,
         ]);
     }
 }

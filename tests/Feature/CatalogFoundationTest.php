@@ -48,8 +48,12 @@ class CatalogFoundationTest extends TestCase
     {
         $owner = User::where('email', 'lojista@provador.test')->firstOrFail();
 
-        $this->actingAs($owner)->get('/painel/atelierlume')->assertOk();
-        $this->actingAs($owner)->get('/painel/atelierlume/products')->assertOk();
+        $this->actingAs($owner)->get('/painel/atelierlume')
+            ->assertOk()
+            ->assertSee('Ver meu catálogo')
+            ->assertSee(url('/atelierlume'), false);
+        // O botão também fica no menu lateral, em todas as páginas do painel.
+        $this->actingAs($owner)->get('/painel/atelierlume/products')->assertOk()->assertSee('Ver meu catálogo');
         $this->actingAs($owner)->get('/painel/atelierlume/orders')->assertOk();
     }
 

@@ -27,6 +27,33 @@ class StorefrontTest extends TestCase
         $this->store = Store::where('slug', 'atelierlume')->firstOrFail();
     }
 
+    public function test_store_logo_is_favicon_and_share_image(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+        $this->store->update(['logo_path' => 'stores/logo-teste.png']);
+        $logo = url(\Illuminate\Support\Facades\Storage::disk('public')->url('stores/logo-teste.png'));
+
+        $this->get('/atelierlume')
+            ->assertOk()
+            ->assertSee('<link rel="icon" href="'.e(\Illuminate\Support\Facades\Storage::disk('public')->url('stores/logo-teste.png')).'">', false)
+            ->assertSee('<meta property="og:image" content="'.e($logo).'">', false);
+
+        $product = $this->store->products()->firstOrFail();
+        $product->update(['images' => ['products/foto-teste.jpg'], 'color_images' => []]);
+
+        $this->get('/atelierlume/p/'.$product->slug)
+            ->assertOk()
+            ->assertSee('products/foto-teste.jpg', false)
+            ->assertSee('summary_large_image', false);
+    }
+
+    public function test_store_without_logo_has_no_custom_favicon(): void
+    {
+        $this->store->update(['logo_path' => null]);
+
+        $this->get('/atelierlume')->assertOk()->assertDontSee('rel="icon"', false);
+    }
+
     public function test_public_pages_load(): void
     {
         $category = $this->store->categories()->firstOrFail();

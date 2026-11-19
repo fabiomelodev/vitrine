@@ -22,12 +22,20 @@
             <div class="size-grid">
                 @foreach ($sizes as $s)
                     <button type="button" class="size-btn" wire:click="selectSize(@js($s['name']))"
-                            aria-pressed="{{ $size === $s['name'] ? 'true' : 'false' }}" @disabled(! $s['available'])>
+                            aria-pressed="{{ $size === $s['name'] ? 'true' : 'false' }}"
+                            @if (! $s['available']) aria-disabled="true" aria-label="{{ $s['name'] }} (esgotado)" @endif>
                         {{ $s['name'] }}
                     </button>
                 @endforeach
             </div>
         </fieldset>
+    @endif
+
+    @if ($sizeNotifyUrl)
+        <div class="notice notice-neutral stack" role="status" style="gap: 10px">
+            <span>O tamanho <strong>{{ $soldOutSize }}</strong>{{ $color ? ' na cor '.$color : '' }} esgotou. A loja pode avisar você quando chegar.</span>
+            <a href="{{ $sizeNotifyUrl }}" class="btn btn-whatsapp-outline" target="_blank" rel="noopener"><x-storefront.icon name="whatsapp" /> Avise-me quando o {{ $soldOutSize }} voltar</a>
+        </div>
     @endif
 
     @if ($error)

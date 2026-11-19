@@ -163,7 +163,8 @@ h1, h2, h3 { font-weight: 400; letter-spacing: -0.01em; margin: 0; }
 .size-grid { display: flex; flex-wrap: wrap; gap: 8px; }
 .size-btn { min-width: 48px; height: 44px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--card); cursor: pointer; font-weight: 500; }
 .size-btn[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
-.size-btn:disabled { background: transparent; color: #8F877D; border-style: dashed; text-decoration: line-through; cursor: not-allowed; }
+.size-btn:disabled, .size-btn[aria-disabled="true"] { background: transparent; color: #8F877D; border-style: dashed; text-decoration: line-through; cursor: not-allowed; }
+.size-btn[aria-disabled="true"] { cursor: pointer; }
 .color-opt { min-height: 40px; border-radius: 10px; padding: 0 10px; display: flex; align-items: center; gap: 10px; background: transparent; border: 1px solid transparent; cursor: pointer; text-align: left; width: 100%; }
 .color-opt[aria-pressed="true"] { background: var(--surface); border-color: var(--ink); }
 .color-opt .swatch { width: 18px; height: 18px; }

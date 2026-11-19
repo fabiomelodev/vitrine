@@ -1,7 +1,11 @@
-@props(['title' => null, 'description' => null])
+@props(['title' => null, 'description' => null, 'image' => null])
 @php
     $pageTitle = $title ? $title.' — '.$store->name : $store->name;
     $logo = \App\Support\Format::image($store->logo_path);
+    $metaDescription = filled($description) ? $description : ($store->description ?: 'Catálogo da '.$store->name.'. Escolha suas peças e peça pelo WhatsApp.');
+    // Imagem do link compartilhado: foto do produto (quando houver) ou logo da loja.
+    $shareImage = $image ?: $logo;
+    $shareImage = $shareImage ? url($shareImage) : null;
     $cssVersion = @filemtime(public_path('css/vitrine.css')) ?: 1;
 @endphp
 <!DOCTYPE html>
@@ -10,9 +14,23 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $pageTitle }}</title>
-    <meta name="description" content="{{ $description ?? ($store->description ?: 'Catálogo da '.$store->name.'. Escolha suas peças e peça pelo WhatsApp.') }}">
+    <meta name="description" content="{{ $metaDescription }}">
+    <meta property="og:site_name" content="{{ $store->name }}">
     <meta property="og:title" content="{{ $pageTitle }}">
+    <meta property="og:description" content="{{ $metaDescription }}">
     <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ url()->current() }}">
+    <meta property="og:locale" content="pt_BR">
+    @if ($shareImage)
+        <meta property="og:image" content="{{ $shareImage }}">
+        <meta property="og:image:alt" content="{{ $image ? $title : 'Logo da '.$store->name }}">
+        <meta name="twitter:card" content="{{ $image ? 'summary_large_image' : 'summary' }}">
+        <meta name="twitter:image" content="{{ $shareImage }}">
+    @endif
+    @if ($logo)
+        <link rel="icon" href="{{ $logo }}">
+        <link rel="apple-touch-icon" href="{{ $logo }}">
+    @endif
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Instrument+Serif:ital@0;1&display=swap">
@@ -26,7 +44,17 @@
                 ids: read(),
                 has(id) { return this.ids.includes(id); },
                 toggle(id) {
-                    this.ids = this.has(id) ? this.ids.filter(i => i !== id) : [...this.ids, id];
+                    const adding = ! this.has(id);
+                    this.ids = adding ? [...this.ids, id] : this.ids.filter(i => i !== id);
+                    // Conta o favorito nas métricas da loja (anônimo).
+                    if (adding) {
+                        try {
+                            const data = new FormData();
+                            data.append('type', 'favorite');
+                            data.append('product', id);
+                            fetch(@js(route('storefront.event', ['storeSlug' => $store->slug])), { method: 'POST', body: data, keepalive: true, credentials: 'same-origin' }).catch(() => {});
+                        } catch (e) {}
+                    }
                     try { localStorage.setItem(key, JSON.stringify(this.ids)); } catch (e) {}
                 },
             });

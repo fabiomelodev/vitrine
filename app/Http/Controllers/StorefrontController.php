@@ -4,11 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\Store;
+use App\Models\StorefrontEvent;
 use App\Support\Format;
+use App\Support\StorefrontTracker;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\Str;
 
 class StorefrontController extends Controller
 {
@@ -33,6 +36,8 @@ class StorefrontController extends Controller
         if (! $store->is_active || ! $store->hasActiveAccess()) {
             return response()->view('storefront.unavailable', [], 503);
         }
+
+        StorefrontTracker::visit($store, request());
 
         return null;
     }
@@ -136,6 +141,8 @@ class StorefrontController extends Controller
             return $this->notFound();
         }
 
+        StorefrontTracker::recordOnce($this->store, StorefrontEvent::PRODUCT_VIEW, $product->getKey());
+
         $related = $product->related()
             ->where('is_visible', true)
             ->with(['variants', 'category'])
@@ -180,6 +187,52 @@ class StorefrontController extends Controller
             'gallery' => $gallery,
             'initialColor' => $initialColor,
         ]);
+    }
+
+    /**
+     * "Avise-me quando voltar": registra a procura pela peça esgotada e abre o WhatsApp da loja.
+     */
+    public function restock(Request $request, string $storeSlug, string $productSlug)
+    {
+        if ($blocked = $this->resolveStore($storeSlug)) {
+            return $blocked;
+        }
+
+        $product = $this->visibleProducts()->where('slug', $productSlug)->first();
+
+        if (! $product) {
+            return $this->notFound();
+        }
+
+        $variant = collect([
+            Str::limit(trim((string) $request->query('cor')), 40, ''),
+            Str::limit(trim((string) $request->query('tam')), 20, ''),
+        ])->filter()->implode(' / ');
+
+        StorefrontTracker::recordOnce($this->store, StorefrontEvent::RESTOCK_REQUEST, $product->getKey(), $variant !== '' ? $variant : null);
+
+        $name = $product->name.($variant !== '' ? ' ('.$variant.')' : '');
+
+        return redirect()->away($this->store->whatsappUrl('Olá! Quero ser avisado(a) quando "'.$name.'" voltar ao estoque.'));
+    }
+
+    /**
+     * Eventos enviados pelo navegador (hoje: peça adicionada aos favoritos).
+     */
+    public function event(Request $request, string $storeSlug)
+    {
+        $store = Store::query()->where('slug', $storeSlug)->where('is_active', true)->first();
+
+        if ($store && $store->hasActiveAccess() && $request->input('type') === StorefrontEvent::FAVORITE) {
+            $productId = (int) $request->input('product');
+            $exists = $store->products()->whereKey($productId)->where('is_visible', true)->exists();
+
+            if ($exists) {
+                StorefrontTracker::recordOnce($store, StorefrontEvent::FAVORITE, $productId);
+            }
+        }
+
+        return response()->noContent();
     }
 
     public function cart(string $storeSlug)

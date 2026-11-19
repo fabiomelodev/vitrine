@@ -12,7 +12,6 @@ use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
@@ -41,7 +40,7 @@ class PainelPanelProvider extends PanelProvider
             ->profile()
             ->brandName('Provador')
             ->colors([
-                'primary' => Color::hex('#7A5C3E'),
+                'primary' => Color::Stone,
             ])
             ->tenant(Store::class, slugAttribute: 'slug')
             ->tenantRegistration(RegisterStore::class)
@@ -58,11 +57,12 @@ class PainelPanelProvider extends PanelProvider
                 PanelsRenderHook::CONTENT_START,
                 fn () => view('filament.painel.subscription-banner'),
             )
+            ->renderHook(
+                PanelsRenderHook::TENANT_MENU_AFTER,
+                fn () => view('filament.painel.storefront-button'),
+            )
             ->discoverResources(in: app_path('Filament/Painel/Resources'), for: 'App\Filament\Painel\Resources')
             ->discoverPages(in: app_path('Filament/Painel/Pages'), for: 'App\Filament\Painel\Pages')
-            ->pages([
-                Dashboard::class,
-            ])
             ->discoverWidgets(in: app_path('Filament/Painel/Widgets'), for: 'App\Filament\Painel\Widgets')
             ->middleware([
                 EncryptCookies::class,

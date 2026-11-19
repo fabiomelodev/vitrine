@@ -5,7 +5,10 @@ namespace App\Livewire\Storefront;
 use App\Livewire\Storefront\Concerns\InteractsWithStore;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\StorefrontEvent;
 use App\Support\Format;
+use App\Support\StorefrontTracker;
+use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Builder;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
@@ -43,6 +46,10 @@ class ProductGrid extends Component
     public bool $includeSoldOut = false;
 
     public int $perPage = 24;
+
+    /** Última busca registrada nas métricas (evita contar de novo a cada filtro). */
+    #[Locked]
+    public ?string $loggedSearch = null;
 
     public const PRICE_RANGES = [
         'ate-100' => ['Até R$ 100', 0, 100],
@@ -104,6 +111,22 @@ class ProductGrid extends Component
             });
     }
 
+    /**
+     * Guarda o termo buscado e quantos produtos ele encontrou (sem contar filtros).
+     */
+    protected function logSearch(Builder $scope): void
+    {
+        $term = Str::lower(Str::squish($this->q));
+
+        if (! $this->searchMode || $term === '' || $term === $this->loggedSearch) {
+            return;
+        }
+
+        $this->loggedSearch = $term;
+
+        StorefrontTracker::record($this->store(), StorefrontEvent::SEARCH, null, $term, (clone $scope)->count());
+    }
+
     public function render()
     {
         $store = $this->store();
@@ -135,6 +158,8 @@ class ProductGrid extends Component
         };
 
         $total = (clone $query)->count();
+
+        $this->logSearch($scope);
         $products = $query->limit($this->perPage)->get();
 
         return view('storefront.livewire.product-grid', [
