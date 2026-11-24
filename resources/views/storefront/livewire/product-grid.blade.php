@@ -50,7 +50,7 @@
 
             <button type="button" class="btn btn-dark btn-block only-mobile" @click="filtersOpen = false">Ver {{ $total }} {{ $total === 1 ? 'peça' : 'peças' }}</button>
         </aside>
-        <div class="drawer-backdrop only-mobile" x-show="filtersOpen" x-cloak @click="filtersOpen = false" style="display: block"></div>
+        <div class="drawer-backdrop" x-show="filtersOpen" x-cloak @click="filtersOpen = false"></div>
 
         <div class="listing-main">
             <div class="toolbar">
