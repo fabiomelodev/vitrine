@@ -4,6 +4,8 @@ namespace App\Actions\Billing;
 
 use App\Enums\SubscriptionStatus;
 use App\Models\Store;
+use App\Notifications\SubscriptionNotice;
+use App\Support\SubscriptionMailer;
 use Illuminate\Support\Carbon;
 
 /**
@@ -68,12 +70,20 @@ class HandleAsaasWebhook
 
         if (in_array($event, self::PAID, true)) {
             $paidThrough = Carbon::parse($payment['dueDate'] ?? now())->addMonth();
+            $wasBlocked = ! $store->hasActiveAccess() || $store->subscription_status === SubscriptionStatus::PastDue;
 
             $store->forceFill([
                 'subscription_status' => SubscriptionStatus::Active,
                 'past_due_since' => null,
                 'access_until' => $store->access_until && $store->access_until->gt($paidThrough) ? $store->access_until : $paidThrough,
             ])->save();
+
+            // Cartão manda CONFIRMED e depois RECEIVED: o e-mail sai uma vez por cobrança.
+            SubscriptionMailer::send($store, SubscriptionNotice::PAID, 'cobranca:'.$payment['id'], [
+                'value' => (float) ($payment['value'] ?? 0),
+                'paid_until' => $store->access_until,
+                'reactivated' => $wasBlocked,
+            ]);
 
             return;
         }
@@ -89,6 +99,8 @@ class HandleAsaasWebhook
                 'subscription_status' => SubscriptionStatus::PastDue,
                 'past_due_since' => $store->past_due_since ?? now(),
             ])->save();
+
+            SubscriptionMailer::overdue($store);
         }
     }
 
@@ -125,6 +137,8 @@ class HandleAsaasWebhook
             'past_due_since' => $store->past_due_since ?? now(),
             'access_until' => $paidThrough,
         ])->save();
+
+        SubscriptionMailer::overdue($store);
     }
 
     protected function handleSubscription(string $event, array $subscription): void
@@ -144,5 +158,9 @@ class HandleAsaasWebhook
             'asaas_subscription_id' => null,
             'access_until' => $store->access_until ?? now(),
         ])->save();
+
+        SubscriptionMailer::send($store, SubscriptionNotice::CANCELED, 'assinatura:'.$subscription['id'], [
+            'until' => $store->access_until,
+        ]);
     }
 }

@@ -2,6 +2,7 @@
 
 use App\Models\Product;
 use App\Models\StorefrontEvent;
+use App\Support\SubscriptionMailer;
 use App\Support\ImageThumbs;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -29,3 +30,14 @@ Artisan::command('provador:miniaturas {--todas : Recria também as que já exist
 
 // Apaga eventos da vitrine com mais de 13 meses (precisa do agendador: php artisan schedule:run no cron).
 Schedule::command('model:prune', ['--model' => [StorefrontEvent::class]])->daily();
+
+Artisan::command('provador:avisos-assinatura', function () {
+    $sent = SubscriptionMailer::checkAll();
+
+    $this->info($sent === []
+        ? 'Nenhum aviso para enviar.'
+        : 'Avisos enviados: '.collect($sent)->map(fn ($n, $type) => "{$type}: {$n}")->implode(', '));
+})->purpose('Envia os e-mails de fim do teste, atraso e vitrine fora do ar');
+
+// Avisos da assinatura, todo dia às 9h (horário de Brasília).
+Schedule::command('provador:avisos-assinatura')->dailyAt('09:00')->timezone('America/Sao_Paulo');

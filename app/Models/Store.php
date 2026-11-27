@@ -258,6 +258,22 @@ class Store extends Model
             ->all();
     }
 
+    /**
+     * E-mails que recebem os avisos da assinatura: o e-mail de cobrança e os donos da loja.
+     *
+     * @return array<int, string>
+     */
+    public function billingEmails(): array
+    {
+        return collect([$this->billing_email])
+            ->merge($this->users()->wherePivot('role', 'owner')->pluck('email'))
+            ->filter()
+            ->map(fn ($email) => mb_strtolower(trim($email)))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
     public function publicUrl(): string
     {
         return url($this->slug);
