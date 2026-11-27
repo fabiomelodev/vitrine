@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Http;
  */
 class AsaasClient
 {
-    protected function http(): PendingRequest
+    protected function http(int $timeout = 20): PendingRequest
     {
         $key = config('services.asaas.key');
 
@@ -27,7 +27,7 @@ class AsaasClient
             ])
             ->acceptJson()
             ->asJson()
-            ->timeout(20);
+            ->timeout($timeout);
     }
 
     protected function check(Response $response): array
@@ -55,6 +55,27 @@ class AsaasClient
     public function createSubscription(array $data): array
     {
         return $this->check($this->http()->post('/subscriptions', $data));
+    }
+
+    /**
+     * Assinatura cobrada automaticamente no cartão. O Asaas recomenda esperar até 60s
+     * e não repetir a chamada sem conferir, para não criar assinatura duplicada.
+     *
+     * @param  array<string, mixed>  $data  inclui creditCard, creditCardHolderInfo e remoteIp
+     */
+    public function createCardSubscription(array $data): array
+    {
+        return $this->check($this->http(60)->post('/subscriptions', [...$data, 'billingType' => 'CREDIT_CARD']));
+    }
+
+    /**
+     * Troca o cartão da assinatura, sem cobrar na hora.
+     *
+     * @param  array<string, mixed>  $data  creditCard, creditCardHolderInfo e remoteIp
+     */
+    public function updateSubscriptionCard(string $subscriptionId, array $data): array
+    {
+        return $this->check($this->http(60)->post("/subscriptions/{$subscriptionId}/updateCreditCard", $data));
     }
 
     public function subscriptionPayments(string $subscriptionId): array

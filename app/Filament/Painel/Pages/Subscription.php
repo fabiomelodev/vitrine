@@ -3,6 +3,7 @@
 namespace App\Filament\Painel\Pages;
 
 use App\Actions\Billing\CancelSubscription;
+use App\Actions\Billing\SetupCardBilling;
 use App\Actions\Billing\StartSubscription;
 use App\Actions\Billing\SyncSubscriptionPayments;
 use App\Models\Store;
@@ -40,6 +41,22 @@ class Subscription extends Page
 
     public string $billing_phone = '';
 
+    /** 'card' = cobrança automática no cartão; 'invoice' = Pix ou boleto a cada mês. */
+    public string $payment_method = 'card';
+
+    // Dados do cartão: só ficam na memória durante o envio ao Asaas e são apagados em seguida.
+    public string $card_holder = '';
+
+    public string $card_number = '';
+
+    public string $card_expiry = '';
+
+    public string $card_cvv = '';
+
+    public string $card_postal_code = '';
+
+    public string $card_address_number = '';
+
     public function mount(): void
     {
         $store = $this->store();
@@ -57,7 +74,7 @@ class Subscription extends Page
         return Filament::getTenant()->fresh(['plan']);
     }
 
-    public function subscribe(StartSubscription $start): void
+    public function subscribe(StartSubscription $start, SetupCardBilling $card): void
     {
         $this->validate([
             'billing_name' => ['required', 'string', 'max:120'],
@@ -73,6 +90,12 @@ class Subscription extends Page
 
         if (! Document::isValid($this->billing_document)) {
             throw ValidationException::withMessages(['billing_document' => 'CPF ou CNPJ inválido.']);
+        }
+
+        if ($this->payment_method === 'card') {
+            $this->submitCard($card, 'Assinatura criada!', 'O cartão será cobrado automaticamente todo mês.');
+
+            return;
         }
 
         try {
@@ -98,6 +121,123 @@ class Subscription extends Page
         if ($invoiceUrl) {
             $this->js('window.open('.json_encode($invoiceUrl).", '_blank')");
         }
+    }
+
+    /**
+     * Ativa o cartão automático numa assinatura de Pix/boleto, ou troca o cartão atual.
+     */
+    public function saveCard(SetupCardBilling $card): void
+    {
+        $store = $this->store();
+        $replacing = $store->billing_method === SetupCardBilling::METHOD_CARD && $store->hasSubscription();
+
+        $this->submitCard(
+            $card,
+            $replacing ? 'Cartão atualizado' : 'Cobrança automática ativada',
+            $replacing ? 'As próximas cobranças serão feitas no novo cartão.' : 'A partir de agora, a mensalidade é cobrada no cartão todo mês.',
+        );
+    }
+
+    protected function submitCard(SetupCardBilling $card, string $successTitle, string $successBody): void
+    {
+        try {
+            $data = $this->validateCard();
+
+            $card->handle($this->store(), $data, [
+                'billing_name' => trim($this->billing_name),
+                'billing_document' => Document::digits($this->billing_document),
+                'billing_email' => trim($this->billing_email),
+                'billing_phone' => $this->billing_phone,
+            ], (string) request()->ip());
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (AsaasException $e) {
+            Notification::make()->title('Não foi possível usar este cartão')->body($e->getMessage())->danger()->send();
+
+            return;
+        } catch (\Throwable $e) {
+            report($e);
+            Notification::make()->title('Não foi possível falar com o sistema de pagamento')->body('Confira em "Atualizar cobranças" antes de tentar de novo, para não duplicar.')->danger()->send();
+
+            return;
+        } finally {
+            // Nunca mantém número, validade e CVV no componente depois do envio.
+            $this->card_number = '';
+            $this->card_expiry = '';
+            $this->card_cvv = '';
+        }
+
+        Notification::make()->title($successTitle)->body($successBody)->success()->send();
+        $this->dispatch('card-saved');
+    }
+
+    /**
+     * @return array{holder_name: string, number: string, expiry_month: string, expiry_year: string, cvv: string, postal_code: string, address_number: string}
+     */
+    protected function validateCard(): array
+    {
+        $this->validate([
+            'billing_name' => ['required', 'string', 'max:120'],
+            'billing_document' => ['required', 'string'],
+            'billing_email' => ['required', 'email'],
+            'billing_phone' => ['required', 'string', 'max:20'],
+            'card_holder' => ['required', 'string', 'max:80'],
+            'card_number' => ['required', 'string'],
+            'card_expiry' => ['required', 'string'],
+            'card_cvv' => ['required', 'regex:/^\d{3,4}$/'],
+            'card_postal_code' => ['required', 'string'],
+            'card_address_number' => ['required', 'string', 'max:10'],
+        ], [
+            'billing_phone.required' => 'Informe um telefone: é exigido para pagar no cartão.',
+            'card_holder.required' => 'Informe o nome impresso no cartão.',
+            'card_number.required' => 'Informe o número do cartão.',
+            'card_expiry.required' => 'Informe a validade.',
+            'card_cvv.required' => 'Informe o código de segurança.',
+            'card_cvv.regex' => 'Código de segurança inválido.',
+            'card_postal_code.required' => 'Informe o CEP do titular.',
+            'card_address_number.required' => 'Informe o número do endereço.',
+        ]);
+
+        $errors = [];
+        $number = preg_replace('/\D/', '', $this->card_number);
+
+        if (! SetupCardBilling::luhn($number)) {
+            $errors['card_number'] = 'Número de cartão inválido. Confira os dígitos.';
+        }
+
+        $expiry = null;
+        if (preg_match('/^\s*(\d{1,2})\s*\/\s*(\d{2}|\d{4})\s*$/', $this->card_expiry, $m) && (int) $m[1] >= 1 && (int) $m[1] <= 12) {
+            $year = strlen($m[2]) === 2 ? 2000 + (int) $m[2] : (int) $m[2];
+            $expiry = [str_pad($m[1], 2, '0', STR_PAD_LEFT), (string) $year];
+
+            if (now()->startOfMonth()->gt(\Illuminate\Support\Carbon::create($year, (int) $m[1], 1))) {
+                $errors['card_expiry'] = 'Este cartão está vencido.';
+            }
+        } else {
+            $errors['card_expiry'] = 'Use o formato MM/AA, ex.: 08/29.';
+        }
+
+        if (strlen(preg_replace('/\D/', '', $this->card_postal_code)) !== 8) {
+            $errors['card_postal_code'] = 'CEP inválido.';
+        }
+
+        if (! Document::isValid($this->billing_document)) {
+            $errors['billing_document'] = 'CPF ou CNPJ inválido.';
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        return [
+            'holder_name' => trim($this->card_holder),
+            'number' => $number,
+            'expiry_month' => $expiry[0],
+            'expiry_year' => $expiry[1],
+            'cvv' => $this->card_cvv,
+            'postal_code' => $this->card_postal_code,
+            'address_number' => trim($this->card_address_number),
+        ];
     }
 
     public function refreshPayments(SyncSubscriptionPayments $sync): void

@@ -72,6 +72,8 @@ class StartSubscription
             'externalReference' => 'store:'.$store->getKey(),
         ]);
 
+        $store->forceFill(['billing_method' => SetupCardBilling::METHOD_INVOICE, 'card_brand' => null, 'card_last_digits' => null]);
+
         $store->forceFill($paidUntil !== null
             // Continua ativa até o fim do que já pagou; depois vale a regra normal de atraso.
             ? [
