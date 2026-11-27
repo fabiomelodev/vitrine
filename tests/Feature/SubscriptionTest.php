@@ -159,6 +159,84 @@ class SubscriptionTest extends TestCase
         $this->assertFalse($store->fresh()->hasActiveAccess());
     }
 
+    public function test_active_store_goes_offline_when_paid_period_ends_without_webhook(): void
+    {
+        // Simula um aviso de atraso que nunca chegou do Asaas.
+        $this->store->forceFill([
+            'subscription_status' => SubscriptionStatus::Active,
+            'access_until' => now()->addDays(2),
+        ])->save();
+
+        $this->assertTrue($this->store->fresh()->hasActiveAccess());
+        $this->assertFalse($this->store->fresh()->paidPeriodOverdue());
+
+        $this->travel(3)->days();
+        $store = $this->store->fresh();
+        $this->assertTrue($store->paidPeriodOverdue());
+        $this->assertTrue($store->hasActiveAccess(), 'Ainda dentro da tolerância.');
+        $this->assertSame($store->access_until->copy()->addDays(Store::GRACE_DAYS)->toDateString(), $store->blocksAt()->toDateString());
+
+        $this->travel(Store::GRACE_DAYS)->days();
+        $this->assertFalse($this->store->fresh()->hasActiveAccess());
+    }
+
+    public function test_refund_removes_paid_period(): void
+    {
+        $this->store->forceFill(['asaas_customer_id' => 'cus_9', 'asaas_subscription_id' => 'sub_9'])->save();
+
+        $payment = [
+            'id' => 'pay_9', 'customer' => 'cus_9', 'subscription' => 'sub_9', 'value' => 49.9,
+            'status' => 'RECEIVED', 'dueDate' => now()->toDateString(), 'paymentDate' => now()->toDateString(),
+            'invoiceUrl' => 'https://sandbox.asaas.com/i/pay_9', 'billingType' => 'CREDIT_CARD',
+        ];
+        $headers = ['asaas-access-token' => 'segredo-webhook'];
+
+        $this->postJson('/webhooks/asaas', ['event' => 'PAYMENT_RECEIVED', 'payment' => $payment], $headers)->assertOk();
+        $this->assertSame(SubscriptionStatus::Active, $this->store->fresh()->subscription_status);
+
+        $this->postJson('/webhooks/asaas', ['event' => 'PAYMENT_CHARGEBACK_REQUESTED', 'payment' => [...$payment, 'status' => 'CHARGEBACK_REQUESTED']], $headers)->assertOk();
+
+        $store = $this->store->fresh();
+        $this->assertSame(SubscriptionStatus::PastDue, $store->subscription_status);
+        $this->assertNull($store->paidThrough());
+        $this->assertTrue($store->hasActiveAccess(), 'Tolerância normal de atraso.');
+
+        $this->travel(Store::GRACE_DAYS + 1)->days();
+        $this->assertFalse($store->fresh()->hasActiveAccess());
+    }
+
+    public function test_resubscribing_before_paid_period_ends_does_not_charge_twice(): void
+    {
+        $paidUntil = now()->addDays(10)->startOfDay();
+
+        $this->store->forceFill([
+            'subscription_status' => SubscriptionStatus::Canceled,
+            'asaas_customer_id' => 'cus_7',
+            'access_until' => $paidUntil,
+        ])->save();
+
+        Http::fake([
+            '*/subscriptions/sub_77/payments' => Http::response(['data' => []]),
+            '*/subscriptions' => Http::response(['id' => 'sub_77', 'status' => 'ACTIVE']),
+        ]);
+
+        app(StartSubscription::class)->handle($this->store->fresh(), [
+            'billing_name' => 'Maria Lojista',
+            'billing_document' => '52998224725',
+            'billing_email' => 'maria@example.com',
+            'billing_phone' => '(11) 98888-7777',
+        ]);
+
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/subscriptions')
+            && $request['nextDueDate'] === $paidUntil->toDateString());
+        Http::assertNotSent(fn ($request) => str_ends_with($request->url(), '/customers'));
+
+        $store = $this->store->fresh();
+        $this->assertSame(SubscriptionStatus::Active, $store->subscription_status);
+        $this->assertSame('sub_77', $store->asaas_subscription_id);
+        $this->assertSame($paidUntil->toDateString(), $store->access_until->toDateString());
+    }
+
     public function test_site_pages_and_register_terms(): void
     {
         $this->get('/')->assertOk()->assertSee('Criar minha loja grátis')->assertSee('R$ 49,90');

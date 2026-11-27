@@ -47,6 +47,7 @@ class StoreForm
                             ->seconds(false),
                         DateTimePicker::make('access_until')
                             ->label('Acesso pago até')
+                            ->helperText('Com status "Ativa", a vitrine sai do ar '.\App\Models\Store::GRACE_DAYS.' dias depois desta data se não houver novo pagamento. Deixe vazio para não expirar.')
                             ->seconds(false),
                         TextEntry::make('asaas_subscription_id')
                             ->label('Assinatura no Asaas')

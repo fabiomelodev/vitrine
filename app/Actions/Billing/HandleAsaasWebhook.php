@@ -14,6 +14,15 @@ class HandleAsaasWebhook
 {
     public const PAID = ['PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED'];
 
+    /** Pagamento que deixou de valer: estorno, contestação no cartão ou recebimento em dinheiro desfeito. */
+    public const REVERSED = [
+        'PAYMENT_REFUNDED',
+        'PAYMENT_CHARGEBACK_REQUESTED',
+        'PAYMENT_CHARGEBACK_DISPUTE',
+        'PAYMENT_AWAITING_CHARGEBACK_REVERSAL',
+        'PAYMENT_RECEIVED_IN_CASH_UNDONE',
+    ];
+
     public function handle(array $payload): void
     {
         $event = (string) ($payload['event'] ?? '');
@@ -69,12 +78,53 @@ class HandleAsaasWebhook
             return;
         }
 
+        if (in_array($event, self::REVERSED, true)) {
+            $this->handleReversal($store);
+
+            return;
+        }
+
         if ($event === 'PAYMENT_OVERDUE') {
             $store->forceFill([
                 'subscription_status' => SubscriptionStatus::PastDue,
                 'past_due_since' => $store->past_due_since ?? now(),
             ])->save();
         }
+    }
+
+    /**
+     * Recalcula até quando a loja está paga sem o pagamento estornado/contestado.
+     * Se não sobrar período pago, a loja entra em atraso (com a tolerância normal).
+     */
+    protected function handleReversal(Store $store): void
+    {
+        $paidThrough = $store->paidThrough();
+        $stillPaid = $paidThrough && $paidThrough->isFuture();
+
+        if ($store->subscription_status === SubscriptionStatus::Canceled) {
+            // Cancelada: fica no ar só até onde ainda está pago.
+            $until = now();
+
+            if ($stillPaid) {
+                $until = $store->access_until && $store->access_until->lt($paidThrough) ? $store->access_until : $paidThrough;
+            }
+
+            $store->forceFill(['access_until' => $until])->save();
+
+            return;
+        }
+
+        if ($stillPaid) {
+            $store->forceFill(['access_until' => $paidThrough])->save();
+
+            return;
+        }
+
+        $store->forceFill([
+            'subscription_status' => SubscriptionStatus::PastDue,
+            'past_due_since' => $store->past_due_since ?? now(),
+            'access_until' => $paidThrough,
+        ])->save();
     }
 
     protected function handleSubscription(string $event, array $subscription): void

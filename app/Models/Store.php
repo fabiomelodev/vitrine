@@ -97,7 +97,11 @@ class Store extends Model
         $now = now();
 
         return match ($this->subscription_status ?? SubscriptionStatus::Trialing) {
-            SubscriptionStatus::Courtesy, SubscriptionStatus::Active => true,
+            SubscriptionStatus::Courtesy => true,
+            // Rede de segurança: se o aviso de atraso do Asaas não chegar, a loja
+            // sai do ar sozinha depois do período pago + tolerância.
+            SubscriptionStatus::Active => ! $this->access_until
+                || $now->lt($this->access_until->copy()->addDays(self::GRACE_DAYS)),
             // Quem já assinou durante o teste ganha a tolerância para o 1º pagamento compensar.
             SubscriptionStatus::Trialing => ! $this->trial_ends_at
                 || $now->lt($this->trial_ends_at->copy()->addDays($this->asaas_subscription_id ? self::GRACE_DAYS : 0)),
@@ -105,6 +109,44 @@ class Store extends Model
                 && $now->lt($this->past_due_since->copy()->addDays(self::GRACE_DAYS)),
             SubscriptionStatus::Canceled => $this->access_until && $now->lt($this->access_until),
         };
+    }
+
+    /**
+     * Assinatura ativa cujo período pago já terminou sem novo pagamento confirmado.
+     */
+    public function paidPeriodOverdue(): bool
+    {
+        return $this->subscription_status === SubscriptionStatus::Active
+            && $this->access_until
+            && now()->gte($this->access_until);
+    }
+
+    /**
+     * Quando a vitrine sai do ar se nada for pago (null = não está prevista).
+     */
+    public function blocksAt(): ?\Illuminate\Support\Carbon
+    {
+        return match ($this->subscription_status ?? SubscriptionStatus::Trialing) {
+            SubscriptionStatus::PastDue => $this->past_due_since?->copy()->addDays(self::GRACE_DAYS),
+            SubscriptionStatus::Active => $this->access_until?->copy()->addDays(self::GRACE_DAYS),
+            SubscriptionStatus::Trialing => $this->trial_ends_at?->copy()->addDays($this->asaas_subscription_id ? self::GRACE_DAYS : 0),
+            SubscriptionStatus::Canceled => $this->access_until?->copy(),
+            SubscriptionStatus::Courtesy => null,
+        };
+    }
+
+    /**
+     * Fim do período coberto pelo último pagamento válido (vencimento + 1 mês).
+     */
+    public function paidThrough(): ?\Illuminate\Support\Carbon
+    {
+        $lastPaid = $this->subscriptionPayments()
+            ->getQuery()
+            ->reorder()
+            ->whereIn('status', SubscriptionPayment::PAID_STATUSES)
+            ->max('due_date');
+
+        return $lastPaid ? \Illuminate\Support\Carbon::parse($lastPaid)->addMonth() : null;
     }
 
     public function isOnTrial(): bool

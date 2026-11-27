@@ -31,7 +31,7 @@ class StartSubscription
         }
 
         if ($store->hasSubscription()) {
-            return $store->subscriptionPayments()->whereNotIn('status', ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'])->value('invoice_url');
+            return $store->subscriptionPayments()->whereNotIn('status', \App\Models\SubscriptionPayment::PAID_STATUSES)->value('invoice_url');
         }
 
         $store->fill($billing)->save();
@@ -48,10 +48,19 @@ class StartSubscription
             $store->forceFill(['asaas_customer_id' => $customer['id']])->save();
         }
 
-        // Ainda em teste: o 1º vencimento é no fim do teste (não perde os dias grátis).
-        $firstDue = $store->isOnTrial() && $store->trial_ends_at?->isFuture()
-            ? $store->trial_ends_at->copy()->startOfDay()
-            : now()->startOfDay();
+        $inTrial = $store->isOnTrial() && $store->trial_ends_at?->isFuture();
+
+        // Cancelou e voltou antes de acabar o período já pago: não cobra de novo esses dias.
+        $paidUntil = $store->subscription_status === SubscriptionStatus::Canceled && $store->access_until?->isFuture()
+            ? $store->access_until->copy()
+            : null;
+
+        // 1º vencimento: no fim do teste, no fim do período já pago, ou hoje.
+        $firstDue = match (true) {
+            $inTrial => $store->trial_ends_at->copy()->startOfDay(),
+            $paidUntil !== null => $paidUntil->copy()->startOfDay(),
+            default => now()->startOfDay(),
+        };
 
         $subscription = $this->asaas->createSubscription([
             'customer' => $store->asaas_customer_id,
@@ -63,13 +72,21 @@ class StartSubscription
             'externalReference' => 'store:'.$store->getKey(),
         ]);
 
-        $store->forceFill([
-            'asaas_subscription_id' => $subscription['id'],
+        $store->forceFill($paidUntil !== null
+            // Continua ativa até o fim do que já pagou; depois vale a regra normal de atraso.
+            ? [
+                'asaas_subscription_id' => $subscription['id'],
+                'subscription_status' => SubscriptionStatus::Active,
+                'access_until' => $paidUntil,
+                'past_due_since' => null,
+            ]
             // Até o 1º pagamento compensar, a loja fica "em teste" com a tolerância de Store::GRACE_DAYS.
-            'subscription_status' => SubscriptionStatus::Trialing,
-            'trial_ends_at' => $store->isOnTrial() && $store->trial_ends_at?->isFuture() ? $store->trial_ends_at : now(),
-            'past_due_since' => null,
-        ])->save();
+            : [
+                'asaas_subscription_id' => $subscription['id'],
+                'subscription_status' => SubscriptionStatus::Trialing,
+                'trial_ends_at' => $inTrial ? $store->trial_ends_at : now(),
+                'past_due_since' => null,
+            ])->save();
 
         $payments = $this->syncPayments->handle($store);
 

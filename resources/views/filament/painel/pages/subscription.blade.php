@@ -21,7 +21,11 @@
                             @endif
                         </span>
                     @elseif ($status === SubscriptionStatus::PastDue)
-                        <span style="font-size: .875rem">Pagamento em atraso desde {{ $store->past_due_since?->format('d/m/Y') }}. A vitrine sai do ar {{ \App\Models\Store::GRACE_DAYS }} dias após o vencimento.</span>
+                        <span style="font-size: .875rem">Pagamento em atraso desde {{ $store->past_due_since?->format('d/m/Y') }}. A vitrine sai do ar em {{ $store->blocksAt()?->format('d/m/Y') }} se não for pago.</span>
+                    @elseif ($store->paidPeriodOverdue())
+                        <span style="font-size: .875rem">A mensalidade venceu em {{ $store->access_until->format('d/m/Y') }} e ainda não recebemos a confirmação do pagamento. A vitrine sai do ar em {{ $store->blocksAt()?->format('d/m/Y') }} se não for pago.</span>
+                    @elseif ($status === SubscriptionStatus::Active && $store->access_until)
+                        <span style="font-size: .875rem">Pago até {{ $store->access_until->format('d/m/Y') }}.</span>
                     @elseif ($status === SubscriptionStatus::Canceled && $store->hasActiveAccess())
                         <span style="font-size: .875rem">Cancelada. Sua vitrine fica no ar até {{ $store->access_until?->format('d/m/Y') }}.</span>
                     @endif
